@@ -6,8 +6,8 @@ import sys  # Get system info
 import threading  # Should be obvious
 import json  # Also obvious
 
-# FB API wrapper ("pip install facebook-sdk")
-import facebook
+# FB API wrapper ("pip install facepy")
+import facepy
 from utils import Color, notify_mac, log
 
 __author__ = 'Henri Sweers'
@@ -38,7 +38,7 @@ class RequestThread(threading.Thread):
         self.queue = queue
 
         # Graph object for our call, authenticated with a token
-        self.graph = facebook.GraphAPI(apikey)
+        self.graph = facepy.GraphAPI(apikey)
 
         # FQL query with specified date range
         self.input_query = query
@@ -65,17 +65,17 @@ class RequestThread(threading.Thread):
         # Get group posts
         try:
             group_posts = self.graph.fql(query=self.input_query)
-        except facebook.GraphAPIError as e:
+        except Exception as e:
             # 99% of the time this is just an expired API access token
             log("Error: " + str(e), Color.RED)
             sys.exit()
 
         log("\t(" + self.time_range + ") - " +
-            str(len(group_posts)) + " posts")
+            str(len(group_posts["data"])) + " posts")
 
         # Iterate over posts
         if len(group_posts) != 0:
-            for post in group_posts:
+            for post in group_posts["data"]:
                 comments_query = \
                     "SELECT fromid, likes, id, time FROM comment WHERE post_id="
 
@@ -111,15 +111,15 @@ class RequestThread(threading.Thread):
                 # Get likes on comments
                 comments = self.graph.fql(
                     comments_query + "\"" + str(post['post_id']) +
-                    "\" LIMIT 350")
+                    "\" LIMIT 500")
 
                 # Iterate over comments
-                if len(comments) != 0:
+                if len(comments["data"]) != 0:
                     log("\t\t(" + self.time_range + ") - " + str(
-                        len(comments)) + " comments")
+                        len(comments["data"])) + " comments")
                     log("\t\t(" + self.time_range + ') - Getting comments...')
 
-                    for c in comments:
+                    for c in comments["data"]:
                         # add their like counts to their respective users
                         # in our total_likes_counter
                         self.tcounter[c['fromid']] += c['likes']
@@ -195,19 +195,20 @@ def count_group_likes():
     person_query = "SELECT first_name, last_name FROM user WHERE uid="
 
     # Authorize our API wrapper
-    graph = facebook.GraphAPI(fb_API_access_token)
+    graph = facepy.GraphAPI(fb_API_access_token)
 
     # Code to programatically extend key
     if extend_key:
-        result = graph.extend_access_token(fb_app_id, fb_secret_key)
-        new_token = result['access_token']
-        new_time = int(result['expires']) + time.time()
+        access_token, expires_at = facepy.get_extended_access_token(
+            fb_API_access_token,
+            fb_app_id,
+            fb_secret_key
+        )
 
         # This will print out new extended token and new expiration date
         # Copy them and replace your token above with this one
-        print 'New token: ' + new_token
-        print 'New expiration date: ' + datetime.datetime.fromtimestamp(
-            new_time).strftime('%Y-%m-%d %H:%M:%S')
+        print 'New token: ' + access_token
+        print 'New expiration date: ' + expires_at
 
     log('Getting group posts', Color.BLUE)
 
@@ -251,6 +252,7 @@ def count_group_likes():
 
         # Start the thread
         t.start()
+        break
 
     log("Joining threads...", Color.BLUE)
 
@@ -295,7 +297,7 @@ def count_group_likes():
     log('\nPeople Stats', Color.BOLD)
     log("* = Weighted average calc'd from user's first post date")
     for i, x in enumerate(most_common_people):
-        person = graph.fql(person_query + str(x[0]))[0]
+        person = graph.fql(person_query + str(x[0]))["data"][0]
 
         now = datetime.datetime.now()
         join_date = datetime.datetime.fromtimestamp(appeared[x[0]])
@@ -324,7 +326,7 @@ def count_group_likes():
     # Iterate over top posts and get info
     log('\nTop posts!', Color.BOLD)
     for x in top_posts:
-        post = graph.get_object(str(x[0]))
+        post = graph.get(str(x[0]))
         s = str(x[1]) + " - " + post['from']['name'] + " - " + post['type']
         print s
         if 'message' in post:
@@ -339,7 +341,7 @@ def count_group_likes():
     # Iterate over top comments and get info
     log('\nTop comments!', Color.BOLD)
     for x in top_comments:
-        comment = graph.get_object(str(x[0]))
+        comment = graph.get(str(x[0]))
         s = str(x[1]) + " - " + comment['from']['name']
         print s
         if 'message' in comment:
@@ -372,7 +374,7 @@ def count_group_likes():
     # Iterate over top posts and get info
     log('\nMost discussed', Color.BOLD)
     for x in most_discussed:
-        post = graph.get_object(str(x[0]))
+        post = graph.get(str(x[0]))
         s = str(x[1]) + " - " + post['from']['name'] + " - " + post['type']
         print s
         if 'message' in post:
