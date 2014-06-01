@@ -252,7 +252,6 @@ def count_group_likes():
 
         # Start the thread
         t.start()
-        break
 
     log("Joining threads...", Color.BLUE)
 
