@@ -8,6 +8,7 @@ import json  # Also obvious
 
 # FB API wrapper ("pip install facepy")
 import facepy
+import props
 from utils import Color, notify_mac, log
 
 __author__ = 'Henri Sweers'
@@ -152,16 +153,9 @@ class RequestThread(threading.Thread):
 
 # Method for counting various total likes in a group
 def count_group_likes():
-    # Access token can be obtained by doing the following:
-    # - Log into facebook
-    # - Go to this url: https://developers.facebook.com/tools/explorer
-    fb_API_access_token = "token_goes_here"
-
-    # Only necessary if you want to get an extended access token
-    # You'll have to make a facebook app and generate a token with it
-    # You'll also need to get the following two values from it
-    fb_app_id = "id_goes_here"
-    fb_secret_key = "key_goes_here"
+    fb_api_access_token = props.token
+    fb_app_id = props.app_id
+    fb_secret_key = props.secret_key
 
     # Counter object to do the counting for us
     total_likes_counter = Counter()
@@ -171,8 +165,8 @@ def count_group_likes():
     total_comments_counter = Counter()
     most_discussed_counter = Counter()
 
-    group_id = "id_goes_here"  # Unique ID of the group to search.
-    num_of_items_to_return = 30  # Return the top ____ most liked ____
+    group_id = props.group_id
+    num_of_items_to_return = props.num_of_items
 
     # Put the number of weeks you want it to increment by each time
     #   smaller is better, but too small and you could hit your rate limit
@@ -182,9 +176,7 @@ def count_group_likes():
     # Convert to unix time
     num_weeks_unix = num_weeks * 604800
 
-    # Start date, in unix time (our group was made 2/13/12)
-    # You can use this to convert: http://goo.gl/4QMFbW
-    start_date = int("start_date_goes_here")
+    start_date = props.start_date
 
     datetime_start_date = datetime.datetime.fromtimestamp(start_date)
 
@@ -195,12 +187,12 @@ def count_group_likes():
     person_query = "SELECT first_name, last_name FROM user WHERE uid="
 
     # Authorize our API wrapper
-    graph = facepy.GraphAPI(fb_API_access_token)
+    graph = facepy.GraphAPI(fb_api_access_token)
 
     # Code to programatically extend key
     if extend_key:
         access_token, expires_at = facepy.get_extended_access_token(
-            fb_API_access_token,
+            fb_api_access_token,
             fb_app_id,
             fb_secret_key
         )
@@ -241,7 +233,7 @@ def count_group_likes():
             str(end_time - num_weeks_unix) + " LIMIT 600"
 
         # Thread creation
-        t = RequestThread(final_queue, fb_API_access_token, new_query,
+        t = RequestThread(final_queue, fb_api_access_token, new_query,
                           end_time, num_weeks_unix)
 
         # Add it to our list
